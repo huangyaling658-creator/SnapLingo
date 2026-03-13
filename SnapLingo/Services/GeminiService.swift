@@ -37,14 +37,16 @@ nonisolated struct GeminiService {
 
         print("[SnapLingo] 📷 Image: \(imageData.count / 1024)KB → base64: \(base64.count / 1024)KB")
 
-        let systemPrompt = "You are a vocabulary extractor. Respond with ONLY a JSON array. Each object: word(MUST be in \(langName) ONLY), phonetic(IPA for \(langName)), translation(MUST be in Chinese 中文 ONLY), type(noun/adjective/verb), x(float 0-1), y(float 0-1). CRITICAL: 'word' field must be purely in \(langName). 'translation' field must be purely in Chinese. Never mix languages. NO markdown, NO extra text."
-
-        let userPrompt = "Look at this image. Return 6 \(langName) vocabulary words. Each word MUST be in \(langName) only. Each translation MUST be in Chinese only."
+        let userPrompt = """
+        Identify 6 \(langName) words from this image.
+        You MUST respond with a JSON array of objects like this example:
+        [{"word":"cat","phonetic":"/kæt/","translation":"猫","type":"noun","x":0.5,"y":0.3},{"word":"big","phonetic":"/bɪɡ/","translation":"大的","type":"adjective","x":0.2,"y":0.6}]
+        Rules: word MUST be in \(langName). translation MUST be in Chinese. x/y=float position on image where the object is. ONLY output the JSON array, nothing else.
+        """
 
         let requestBody: [String: Any] = [
             "model": model,
             "messages": [
-                ["role": "system", "content": systemPrompt],
                 [
                     "role": "user",
                     "content": [
@@ -168,6 +170,26 @@ nonisolated struct GeminiService {
             }
         }
         guard let data = cleaned.data(using: .utf8) else { return [] }
-        return (try? JSONDecoder().decode([Word].self, from: data)) ?? []
+
+        // Try structured Word objects first
+        if let words = try? JSONDecoder().decode([Word].self, from: data), !words.isEmpty {
+            return words
+        }
+
+        // Fallback: handle simple string array like ["house","tree","sun"]
+        if let strings = try? JSONDecoder().decode([String].self, from: data) {
+            print("[SnapLingo] 🔧 Converting string array to Word objects")
+            return strings.enumerated().map { i, s in
+                let angle = (2.0 * Double.pi / Double(max(strings.count, 1))) * Double(i)
+                return Word(
+                    word: s, phonetic: "", translation: "",
+                    type: .noun,
+                    x: 0.5 + cos(angle) * 0.35,
+                    y: 0.5 + sin(angle) * 0.35
+                )
+            }
+        }
+
+        return []
     }
 }

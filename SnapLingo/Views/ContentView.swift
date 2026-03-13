@@ -3,8 +3,32 @@ import SwiftUI
 struct ContentView: View {
     @State private var viewModel = SnapLingoViewModel()
     @State private var selectedTab = 0
+    @State private var showSplash = true
 
     var body: some View {
+        ZStack {
+            // Main app
+            mainTabView
+                .opacity(showSplash ? 0 : 1)
+
+            // Splash overlay
+            if showSplash {
+                SplashView()
+                    .transition(.opacity)
+                    .zIndex(100)
+            }
+        }
+        .onAppear {
+            // Show splash for 1.2s then smooth fade out
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                withAnimation(.easeInOut(duration: 0.4)) {
+                    showSplash = false
+                }
+            }
+        }
+    }
+
+    private var mainTabView: some View {
         TabView(selection: $selectedTab) {
             Tab("首页", systemImage: "camera.fill", value: 0) {
                 homeNavigation
