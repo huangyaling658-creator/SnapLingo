@@ -202,6 +202,20 @@ final class SnapLingoViewModel {
         showLanguagePicker = false
     }
 
+    // MARK: - Delete history record
+
+    func deleteRecord(_ record: LearningRecord) {
+        // Remove image file
+        if let fileName = record.imageFileName {
+            let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            let fileURL = docs.appendingPathComponent(fileName)
+            try? FileManager.default.removeItem(at: fileURL)
+        }
+        // Remove from array and persist
+        history.removeAll { $0.id == record.id }
+        StorageService.saveHistory(history)
+    }
+
     // MARK: - Load history record
 
     func loadRecord(_ record: LearningRecord) {

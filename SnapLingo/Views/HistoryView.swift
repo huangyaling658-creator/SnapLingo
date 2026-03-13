@@ -3,6 +3,8 @@ import SwiftUI
 struct HistoryView: View {
     @Bindable var viewModel: SnapLingoViewModel
     @State private var selectedRecord: LearningRecord?
+    @State private var recordToDelete: LearningRecord?
+    @State private var showDeleteConfirm = false
 
     private let columns = [
         GridItem(.flexible(), spacing: 12),
@@ -23,6 +25,16 @@ struct HistoryView: View {
         }
         .sheet(item: $selectedRecord) { record in
             HistoryDetailSheet(record: record, viewModel: viewModel)
+        }
+        .alert("确认删除", isPresented: $showDeleteConfirm) {
+            Button("删除", role: .destructive) {
+                if let record = recordToDelete {
+                    viewModel.deleteRecord(record)
+                }
+            }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("删除后无法恢复，确定要删除这条学习记录吗？")
         }
     }
 
@@ -52,6 +64,14 @@ struct HistoryView: View {
                         historyCard(record)
                     }
                     .buttonStyle(.plain)
+                    .contextMenu {
+                        Button(role: .destructive) {
+                            recordToDelete = record
+                            showDeleteConfirm = true
+                        } label: {
+                            Label("删除", systemImage: "trash")
+                        }
+                    }
                 }
             }
             .padding(16)
@@ -110,6 +130,7 @@ struct HistoryDetailSheet: View {
     @State private var showShareSheet = false
     @State private var shareImage: UIImage?
     @State private var savedToAlbum = false
+    @State private var showDeleteConfirm = false
 
     private var lang: Language? {
         Language.all.first { $0.code == record.lang }
@@ -129,7 +150,7 @@ struct HistoryDetailSheet: View {
                         .foregroundStyle(Color.subtle)
                         .padding(.top, 10)
 
-                    // Word list
+                    // Word list — entire row tappable for speech
                     LazyVStack(spacing: 0) {
                         ForEach(Array(record.words.enumerated()), id: \.element.id) { index, word in
                             Button {
@@ -161,16 +182,9 @@ struct HistoryDetailSheet: View {
                                         .font(.system(size: 15, weight: .medium))
                                         .foregroundStyle(Color.accentSoft)
 
-                                    Button {
-                                        if let l = lang {
-                                            SpeechService.speak(text: word.word, voiceLanguage: l.voiceId)
-                                        }
-                                    } label: {
-                                        Image(systemName: "speaker.wave.2.fill")
-                                            .font(.system(size: 14))
-                                            .foregroundStyle(Color.highlight)
-                                            .padding(8)
-                                    }
+                                    Image(systemName: "speaker.wave.2.fill")
+                                        .font(.system(size: 14))
+                                        .foregroundStyle(Color.highlight)
                                 }
                                 .padding(.vertical, 8)
                                 .padding(.trailing, 12)
@@ -196,27 +210,36 @@ struct HistoryDetailSheet: View {
                     Button("关闭") { dismiss() }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    HStack(spacing: 16) {
-                        // Save to album
+                    HStack(spacing: 12) {
+                        // Save to album — text only
                         Button {
                             let img = generateShareImage()
                             UIImageWriteToSavedPhotosAlbum(img, nil, nil, nil)
                             savedToAlbum = true
                             DispatchQueue.main.asyncAfter(deadline: .now() + 2) { savedToAlbum = false }
                         } label: {
-                            Image(systemName: savedToAlbum ? "checkmark.circle.fill" : "square.and.arrow.down")
-                                .font(.system(size: 16))
+                            Text(savedToAlbum ? "已保存" : "保存")
+                                .font(.system(size: 15))
                                 .foregroundStyle(savedToAlbum ? .green : Color.highlight)
                         }
 
-                        // Share
+                        // Share — text only
                         Button {
                             shareImage = generateShareImage()
                             showShareSheet = true
                         } label: {
-                            Image(systemName: "square.and.arrow.up")
-                                .font(.system(size: 16))
+                            Text("分享")
+                                .font(.system(size: 15))
                                 .foregroundStyle(Color.highlight)
+                        }
+
+                        // Delete
+                        Button {
+                            showDeleteConfirm = true
+                        } label: {
+                            Text("删除")
+                                .font(.system(size: 15))
+                                .foregroundStyle(.red)
                         }
                     }
                 }
@@ -224,6 +247,15 @@ struct HistoryDetailSheet: View {
         }
         .sheet(isPresented: $showShareSheet) {
             if let img = shareImage { ShareSheet(items: [img]) }
+        }
+        .alert("确认删除", isPresented: $showDeleteConfirm) {
+            Button("删除", role: .destructive) {
+                viewModel.deleteRecord(record)
+                dismiss()
+            }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("删除后无法恢复，确定要删除这条学习记录吗？")
         }
     }
 
@@ -310,8 +342,18 @@ struct HistoryDetailSheet: View {
             }
             .frame(width: w, height: h)
             .onAppear {
-                containerSize = CGSize(width: w, height: h)
-                assignPositionsFromWords(width: w, height: h)
+                if w > 0 {
+                    containerSize = CGSize(width: w, height: h)
+                    assignPositionsFromWords(width: w, height: h)
+                }
+            }
+            .onChange(of: geo.size) { _, newSize in
+                let newW = newSize.width
+                let newH = newW * 1.2
+                if newW > 0 && tagPositions.isEmpty {
+                    containerSize = CGSize(width: newW, height: newH)
+                    assignPositionsFromWords(width: newW, height: newH)
+                }
             }
         }
         .aspectRatio(1 / 1.2, contentMode: .fit)
@@ -319,15 +361,15 @@ struct HistoryDetailSheet: View {
 
     private func assignPositionsFromWords(width w: CGFloat, height h: CGFloat) {
         let count = record.words.count
-        guard count > 0 else { return }
+        guard count > 0, w > 0 else { return }
         let margin: CGFloat = 50
 
         for (i, word) in record.words.enumerated() {
             // Use saved x/y from the Word (API-returned positions)
-            if word.x != nil && word.y != nil {
+            if let xVal = word.x, let yVal = word.y {
                 tagPositions[word.id] = CGPoint(
-                    x: margin + CGFloat(word.posX) * (w - margin * 2),
-                    y: margin + CGFloat(word.posY) * (h - margin * 2)
+                    x: margin + CGFloat(xVal) * (w - margin * 2),
+                    y: margin + CGFloat(yVal) * (h - margin * 2)
                 )
             } else {
                 // Fallback: circular layout

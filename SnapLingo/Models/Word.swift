@@ -11,9 +11,9 @@ struct Word: Codable, Identifiable, Equatable {
 
     var id: String { "\(word)-\(type.rawValue)" }
 
-    /// Position for overlay on image (with fallback)
-    var posX: Double { x ?? Double.random(in: 0.1...0.9) }
-    var posY: Double { y ?? Double.random(in: 0.1...0.9) }
+    /// Position for overlay on image (with deterministic fallback based on word hash)
+    var posX: Double { x ?? (0.1 + Double(abs(word.hashValue) % 80) / 100.0) }
+    var posY: Double { y ?? (0.1 + Double(abs(word.hashValue / 7) % 80) / 100.0) }
 
     enum WordType: String, Codable {
         case noun

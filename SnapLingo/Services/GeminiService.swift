@@ -48,6 +48,25 @@ nonisolated struct GeminiService {
         default:   example = #"[{"word":"cat","phonetic":"/kæt/","translation":"猫","type":"noun","x":0.5,"y":0.3},{"word":"big","phonetic":"/bɪɡ/","translation":"大的","type":"adjective","x":0.2,"y":0.6}]"#
         }
 
+        // Extra emphasis for languages where model tends to output Chinese in word field
+        let langReminder: String
+        switch targetLang.code {
+        case "ko":
+            langReminder = """
+            CRITICAL: The "word" field must be written in KOREAN HANGUL (한글).
+            Examples: 노트북, 화면, 키보드, 마우스, 컴퓨터, 책상
+            NEVER use Chinese characters (汉字) in the "word" field.
+            """
+        case "ja":
+            langReminder = """
+            CRITICAL: The "word" field must be written in JAPANESE (カタカナ/ひらがな/漢字).
+            Examples: ラップトップ, 画面, キーボード, マウス
+            NEVER use Chinese words in the "word" field.
+            """
+        default:
+            langReminder = ""
+        }
+
         let userPrompt = """
         Look at this image. Identify objects, scenes, and any text you see.
         For each item, provide the \(langName) word (NOT Chinese, NOT the original text in the image).
@@ -58,9 +77,11 @@ nonisolated struct GeminiService {
 
         RULES:
         - "word" = \(langName) ONLY. Never Chinese. Never mixed languages.
-        - "translation" = Chinese ONLY.
-        - x/y = float 0-1, position on image.
-        - Output ONLY the JSON array.
+        - "translation" = Chinese ONLY (中文翻译).
+        - "phonetic" = IPA pronunciation of the \(langName) word.
+        - x/y = float 0-1, position on image where the object is located.
+        - Output ONLY the JSON array, no other text.
+        \(langReminder)
         """
 
         let requestBody: [String: Any] = [

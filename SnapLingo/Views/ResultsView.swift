@@ -52,28 +52,33 @@ struct ResultsView: View {
             if let img = shareImage { ShareSheet(items: [img]) }
         }
         .onChange(of: viewModel.words.count) {
-            assignCircularPositions()
+            assignPositions()
         }
     }
 
-    // MARK: - Circular Layout
+    // MARK: - Position Layout (uses API x/y when available)
 
-    private func assignCircularPositions() {
+    private func assignPositions() {
         let count = viewModel.words.count
         guard count > 0, containerSize.width > 0 else { return }
         let w = containerSize.width
         let h = containerSize.height
-        let centerX = w / 2
-        let centerY = h / 2
-        let radiusX = w * 0.35
-        let radiusY = h * 0.35
+        let margin: CGFloat = 50
 
         for (i, word) in viewModel.words.enumerated() {
             if tagPositions[word.id] != nil { continue }  // Don't reset dragged tags
-            let angle = (2 * .pi / Double(max(count, 1))) * Double(i) - .pi / 2
-            let x = centerX + CGFloat(cos(angle)) * radiusX
-            let y = centerY + CGFloat(sin(angle)) * radiusY
-            tagPositions[word.id] = CGPoint(x: x, y: y)
+            if word.x != nil && word.y != nil {
+                tagPositions[word.id] = CGPoint(
+                    x: margin + CGFloat(word.posX) * (w - margin * 2),
+                    y: margin + CGFloat(word.posY) * (h - margin * 2)
+                )
+            } else {
+                let angle = (2 * .pi / Double(max(count, 1))) * Double(i) - .pi / 2
+                tagPositions[word.id] = CGPoint(
+                    x: w / 2 + CGFloat(cos(angle)) * w * 0.35,
+                    y: h / 2 + CGFloat(sin(angle)) * h * 0.35
+                )
+            }
         }
     }
 
@@ -150,7 +155,7 @@ struct ResultsView: View {
             .frame(width: w, height: h)
             .onAppear {
                 containerSize = CGSize(width: w, height: h)
-                assignCircularPositions()
+                assignPositions()
             }
         }
         .aspectRatio(1 / 1.2, contentMode: .fit)
@@ -210,15 +215,9 @@ struct ResultsView: View {
                             .font(.system(size: 15, weight: .medium))
                             .foregroundStyle(Color.accentSoft)
 
-                        // Speak
-                        Button {
-                            viewModel.speak(word.word)
-                        } label: {
-                            Image(systemName: "speaker.wave.2.fill")
-                                .font(.system(size: 14))
-                                .foregroundStyle(Color.highlight)
-                                .padding(8)
-                        }
+                        Image(systemName: "speaker.wave.2.fill")
+                            .font(.system(size: 14))
+                            .foregroundStyle(Color.highlight)
 
                         // Bookmark
                         Button {

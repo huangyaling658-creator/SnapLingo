@@ -46,7 +46,7 @@ struct ContentView: View {
                 ProfileView()
             }
         }
-        .tint(Color.textPrimary)
+        .tint(Color(hex: "FFD60A"))
         .alert("提示", isPresented: $viewModel.showError) {
             Button("好的", role: .cancel) {}
         } message: {

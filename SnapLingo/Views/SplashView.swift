@@ -7,37 +7,31 @@ struct SplashView: View {
 
     var body: some View {
         ZStack {
-            Color(hex: "1A1A1A").ignoresSafeArea()
+            // Bright gradient background
+            LinearGradient(
+                colors: [Color(hex: "FFF8E1"), Color(hex: "FFFDE7")],
+                startPoint: .top, endPoint: .bottom
+            )
+            .ignoresSafeArea()
 
-            VStack(spacing: 24) {
-                // Logo icon
+            VStack(spacing: 20) {
+                // Simple bright logo
                 ZStack {
-                    // Camera body
-                    RoundedRectangle(cornerRadius: 16)
-                        .stroke(Color.white.opacity(0.8), lineWidth: 4)
-                        .frame(width: 120, height: 88)
-
-                    // Lens
-                    Circle()
-                        .stroke(Color.white.opacity(0.8), lineWidth: 4)
-                        .frame(width: 56, height: 56)
-
-                    // Center dot
+                    // Yellow circle background
                     Circle()
                         .fill(Color(hex: "FFD60A"))
-                        .frame(width: 18, height: 18)
+                        .frame(width: 100, height: 100)
+                        .shadow(color: Color(hex: "FFD60A").opacity(0.4), radius: 20, y: 4)
 
-                    // Flash
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(Color.white.opacity(0.7))
-                        .frame(width: 24, height: 12)
-                        .offset(x: 36, y: -38)
-
-                    // "Aa" badge
-                    Text("Aa")
-                        .font(.system(size: 22, weight: .heavy, design: .rounded))
-                        .foregroundStyle(Color(hex: "FFD60A"))
-                        .offset(x: 0, y: 50)
+                    // Camera icon + text
+                    VStack(spacing: 2) {
+                        Image(systemName: "camera.fill")
+                            .font(.system(size: 32, weight: .medium))
+                            .foregroundStyle(.white)
+                        Text("Aa")
+                            .font(.system(size: 16, weight: .black, design: .rounded))
+                            .foregroundStyle(.white)
+                    }
                 }
                 .scaleEffect(logoScale)
                 .opacity(logoOpacity)
@@ -45,13 +39,13 @@ struct SplashView: View {
                 // App name
                 Text("拍照学外语")
                     .font(.system(size: 28, weight: .bold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color(hex: "333333"))
                     .opacity(logoOpacity)
 
                 // Slogan
                 Text("看到什么，学什么")
                     .font(.system(size: 16, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.6))
+                    .foregroundStyle(Color(hex: "999999"))
                     .opacity(sloganOpacity)
             }
         }
