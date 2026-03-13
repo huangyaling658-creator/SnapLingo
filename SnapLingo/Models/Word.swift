@@ -32,6 +32,47 @@ struct Word: Codable, Identifiable, Equatable {
             self = WordType(rawValue: raw) ?? .other
         }
     }
+
+    // Custom decoder: handles x/y as either number or string ("0.35" or 0.35)
+    enum CodingKeys: String, CodingKey {
+        case word, phonetic, translation, example, type, x, y
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        word = try c.decode(String.self, forKey: .word)
+        phonetic = (try? c.decode(String.self, forKey: .phonetic)) ?? ""
+        translation = (try? c.decode(String.self, forKey: .translation)) ?? ""
+        example = try? c.decode(String.self, forKey: .example)
+        type = (try? c.decode(WordType.self, forKey: .type)) ?? .other
+
+        // x/y: accept Double or String
+        if let v = try? c.decode(Double.self, forKey: .x) {
+            x = v
+        } else if let s = try? c.decode(String.self, forKey: .x), let v = Double(s) {
+            x = v
+        } else {
+            x = nil
+        }
+        if let v = try? c.decode(Double.self, forKey: .y) {
+            y = v
+        } else if let s = try? c.decode(String.self, forKey: .y), let v = Double(s) {
+            y = v
+        } else {
+            y = nil
+        }
+    }
+
+    // Manual init for programmatic creation
+    init(word: String, phonetic: String, translation: String, example: String? = nil, type: WordType, x: Double? = nil, y: Double? = nil) {
+        self.word = word
+        self.phonetic = phonetic
+        self.translation = translation
+        self.example = example
+        self.type = type
+        self.x = x
+        self.y = y
+    }
 }
 
 struct SavedWord: Codable, Identifiable, Equatable {

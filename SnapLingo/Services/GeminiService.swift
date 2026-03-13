@@ -144,7 +144,13 @@ nonisolated struct GeminiService {
         buffer = String(buffer[buffer.index(after: end)...])
 
         guard let data = objectStr.data(using: .utf8) else { return nil }
-        return try? JSONDecoder().decode(Word.self, from: data)
+        do {
+            return try JSONDecoder().decode(Word.self, from: data)
+        } catch {
+            print("[SnapLingo] ⚠️ Word decode failed: \(error)")
+            print("[SnapLingo] ⚠️ Object: \(objectStr.prefix(200))")
+            return nil
+        }
     }
 
     /// Fallback: parse the full response text as JSON array
