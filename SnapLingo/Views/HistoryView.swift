@@ -107,6 +107,9 @@ struct HistoryDetailSheet: View {
     @State private var selectedIdx: Int = -1
     @State private var tagPositions: [String: CGPoint] = [:]
     @State private var containerSize: CGSize = .zero
+    @State private var showShareSheet = false
+    @State private var shareImage: UIImage?
+    @State private var savedToAlbum = false
 
     private var lang: Language? {
         Language.all.first { $0.code == record.lang }
@@ -193,15 +196,80 @@ struct HistoryDetailSheet: View {
                     Button("关闭") { dismiss() }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    if let l = lang {
-                        HStack(spacing: 4) {
-                            Text(l.flag)
-                            Text(l.label)
-                                .font(.system(size: 13))
+                    HStack(spacing: 16) {
+                        // Save to album
+                        Button {
+                            let img = generateShareImage()
+                            UIImageWriteToSavedPhotosAlbum(img, nil, nil, nil)
+                            savedToAlbum = true
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 2) { savedToAlbum = false }
+                        } label: {
+                            Image(systemName: savedToAlbum ? "checkmark.circle.fill" : "square.and.arrow.down")
+                                .font(.system(size: 16))
+                                .foregroundStyle(savedToAlbum ? .green : Color.highlight)
                         }
-                        .foregroundStyle(Color.subtle)
+
+                        // Share
+                        Button {
+                            shareImage = generateShareImage()
+                            showShareSheet = true
+                        } label: {
+                            Image(systemName: "square.and.arrow.up")
+                                .font(.system(size: 16))
+                                .foregroundStyle(Color.highlight)
+                        }
                     }
                 }
+            }
+        }
+        .sheet(isPresented: $showShareSheet) {
+            if let img = shareImage { ShareSheet(items: [img]) }
+        }
+    }
+
+    // MARK: - Generate share image with word tags
+
+    private func generateShareImage() -> UIImage {
+        let baseImage = viewModel.loadHistoryImage(record.imageFileName)
+        let canvasW: CGFloat = 400
+        let canvasH: CGFloat = 480
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: canvasW, height: canvasH))
+        return renderer.image { _ in
+            // Draw base image
+            baseImage?.draw(in: CGRect(x: 0, y: 0, width: canvasW, height: canvasH))
+
+            // Draw word tags
+            let count = record.words.count
+            for (i, word) in record.words.enumerated() {
+                let px: CGFloat
+                let py: CGFloat
+                if let x = word.x, let y = word.y {
+                    px = 40 + CGFloat(x) * (canvasW - 80)
+                    py = 40 + CGFloat(y) * (canvasH - 80)
+                } else {
+                    let angle = (2 * .pi / Double(max(count, 1))) * Double(i) - .pi / 2
+                    px = canvasW / 2 + CGFloat(cos(angle)) * canvasW * 0.3
+                    py = canvasH / 2 + CGFloat(sin(angle)) * canvasH * 0.3
+                }
+
+                let tagW: CGFloat = 90, tagH: CGFloat = 52
+                let tagRect = CGRect(x: px - tagW / 2, y: py - tagH / 2, width: tagW, height: tagH)
+
+                UIBezierPath(roundedRect: tagRect, cornerRadius: 8).fill(with: .normal, alpha: 0.95)
+                UIColor(red: 1, green: 0.84, blue: 0.04, alpha: 0.95).setFill()
+                UIBezierPath(roundedRect: tagRect, cornerRadius: 8).fill()
+
+                let wordAttr: [NSAttributedString.Key: Any] = [.font: UIFont.boldSystemFont(ofSize: 12), .foregroundColor: UIColor.black]
+                let ws = (word.word as NSString).size(withAttributes: wordAttr)
+                (word.word as NSString).draw(at: CGPoint(x: tagRect.midX - ws.width / 2, y: tagRect.minY + 5), withAttributes: wordAttr)
+
+                let phoneticAttr: [NSAttributedString.Key: Any] = [.font: UIFont.italicSystemFont(ofSize: 9), .foregroundColor: UIColor.darkGray]
+                let ps = (word.phonetic as NSString).size(withAttributes: phoneticAttr)
+                (word.phonetic as NSString).draw(at: CGPoint(x: tagRect.midX - ps.width / 2, y: tagRect.minY + 21), withAttributes: phoneticAttr)
+
+                let transAttr: [NSAttributedString.Key: Any] = [.font: UIFont.systemFont(ofSize: 10), .foregroundColor: UIColor.darkGray]
+                let ts = (word.translation as NSString).size(withAttributes: transAttr)
+                (word.translation as NSString).draw(at: CGPoint(x: tagRect.midX - ts.width / 2, y: tagRect.minY + 35), withAttributes: transAttr)
             }
         }
     }
@@ -243,24 +311,32 @@ struct HistoryDetailSheet: View {
             .frame(width: w, height: h)
             .onAppear {
                 containerSize = CGSize(width: w, height: h)
-                assignCircularPositions(width: w, height: h)
+                assignPositionsFromWords(width: w, height: h)
             }
         }
         .aspectRatio(1 / 1.2, contentMode: .fit)
     }
 
-    private func assignCircularPositions(width w: CGFloat, height h: CGFloat) {
+    private func assignPositionsFromWords(width w: CGFloat, height h: CGFloat) {
         let count = record.words.count
         guard count > 0 else { return }
-        let cx = w / 2, cy = h / 2
-        let rx = w * 0.35, ry = h * 0.35
+        let margin: CGFloat = 50
 
         for (i, word) in record.words.enumerated() {
-            let angle = (2 * .pi / Double(max(count, 1))) * Double(i) - .pi / 2
-            tagPositions[word.id] = CGPoint(
-                x: cx + CGFloat(cos(angle)) * rx,
-                y: cy + CGFloat(sin(angle)) * ry
-            )
+            // Use saved x/y from the Word (API-returned positions)
+            if word.x != nil && word.y != nil {
+                tagPositions[word.id] = CGPoint(
+                    x: margin + CGFloat(word.posX) * (w - margin * 2),
+                    y: margin + CGFloat(word.posY) * (h - margin * 2)
+                )
+            } else {
+                // Fallback: circular layout
+                let angle = (2 * .pi / Double(max(count, 1))) * Double(i) - .pi / 2
+                tagPositions[word.id] = CGPoint(
+                    x: w / 2 + CGFloat(cos(angle)) * w * 0.35,
+                    y: h / 2 + CGFloat(sin(angle)) * h * 0.35
+                )
+            }
         }
     }
 }

@@ -37,11 +37,30 @@ nonisolated struct GeminiService {
 
         print("[SnapLingo] 📷 Image: \(imageData.count / 1024)KB → base64: \(base64.count / 1024)KB")
 
+        // Language-specific examples for few-shot
+        let example: String
+        switch targetLang.code {
+        case "ja": example = #"[{"word":"ねこ","phonetic":"/neko/","translation":"猫","type":"noun","x":0.5,"y":0.3},{"word":"おおきい","phonetic":"/oːkiː/","translation":"大的","type":"adjective","x":0.2,"y":0.6}]"#
+        case "ko": example = #"[{"word":"고양이","phonetic":"/gojaŋi/","translation":"猫","type":"noun","x":0.5,"y":0.3},{"word":"큰","phonetic":"/kʰɯn/","translation":"大的","type":"adjective","x":0.2,"y":0.6}]"#
+        case "fr": example = #"[{"word":"chat","phonetic":"/ʃa/","translation":"猫","type":"noun","x":0.5,"y":0.3},{"word":"grand","phonetic":"/ɡʁɑ̃/","translation":"大的","type":"adjective","x":0.2,"y":0.6}]"#
+        case "es": example = #"[{"word":"gato","phonetic":"/ˈɡato/","translation":"猫","type":"noun","x":0.5,"y":0.3},{"word":"grande","phonetic":"/ˈɡɾande/","translation":"大的","type":"adjective","x":0.2,"y":0.6}]"#
+        case "de": example = #"[{"word":"Katze","phonetic":"/ˈkatsə/","translation":"猫","type":"noun","x":0.5,"y":0.3},{"word":"groß","phonetic":"/ɡʁoːs/","translation":"大的","type":"adjective","x":0.2,"y":0.6}]"#
+        default:   example = #"[{"word":"cat","phonetic":"/kæt/","translation":"猫","type":"noun","x":0.5,"y":0.3},{"word":"big","phonetic":"/bɪɡ/","translation":"大的","type":"adjective","x":0.2,"y":0.6}]"#
+        }
+
         let userPrompt = """
-        Identify 6 \(langName) words from this image.
-        You MUST respond with a JSON array of objects like this example:
-        [{"word":"cat","phonetic":"/kæt/","translation":"猫","type":"noun","x":0.5,"y":0.3},{"word":"big","phonetic":"/bɪɡ/","translation":"大的","type":"adjective","x":0.2,"y":0.6}]
-        Rules: word MUST be in \(langName). translation MUST be in Chinese. x/y=float position on image where the object is. ONLY output the JSON array, nothing else.
+        Look at this image. Identify objects, scenes, and any text you see.
+        For each item, provide the \(langName) word (NOT Chinese, NOT the original text in the image).
+        If there is Chinese text in the image, you must TRANSLATE it into \(langName).
+
+        Return 6 words as JSON array. Example format:
+        \(example)
+
+        RULES:
+        - "word" = \(langName) ONLY. Never Chinese. Never mixed languages.
+        - "translation" = Chinese ONLY.
+        - x/y = float 0-1, position on image.
+        - Output ONLY the JSON array.
         """
 
         let requestBody: [String: Any] = [
